@@ -1,81 +1,97 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using System.IO;
 using UnityEngine.SceneManagement;
 
 public class MenuPausa : MonoBehaviour
 {
+    public static bool EnPausa = false;
+    public static bool EnJuego = false;
 
-	public static bool EnPausa = false;
-	public static bool EnJuego = false;
-	public AudioSource CanGlo;
-	public AudioSource CanPau;
-	public GameObject PanelA;
+    [Header("Audio")]
+    public AudioSource CanGlo;
+    public AudioSource CanPau;
+    public static ScriptAudio BSonido;
+
+    [Header("UI Panels")]
+    public GameObject PanelA;
     public GameObject Geosic;
     public GameObject Jugar;
     public GameObject Panel;
-
-	private float AnimT = 0;
-	private float AnimTC;
-	private int num = 3;
-	public static ScriptAudio BSonido;
-
-	public GameObject Conti;
+    public GameObject Conti;
     public GameObject PConti;
     public GameObject Sal;
     public GameObject PSal;
     public GameObject Rein;
 
+    [Header("Player Prefab")]
     public GameObject Jug;
 
+    private float AnimT = 0;
+    private int num = 3;
+
     void Start()
-	{
-		BSonido = FindObjectOfType<ScriptAudio>();
-	}
-
-    // Update is called once per frame
-    void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape) && EnJuego)
-        {
+        // En Unity 6, FindFirstObjectByType es la versión moderna y más rápida
+        BSonido = Object.FindFirstObjectByType<ScriptAudio>();
 
-            if (!EnPausa) PonerPausa();
-            else
-            {
-                QuitarPausa();
-            }
-
-        }
-        if (SceneManager.GetActiveScene().buildIndex == 1)
+        if (BSonido == null)
         {
-            if (EnJuego == false && !Rein.active) MostrarFin();
+            Debug.LogError("No se encontró ScriptAudio en la escena. Asegúrate de que el objeto con ScriptAudio existe.");
         }
     }
 
-	public void PonerPausa()
-	{
-		EnPausa = true;
-		CanGlo.Pause();
-		CanPau.time = Random.Range(35.0f, 165.0f);
-		CanPau.Play();
-		Conti.SetActive(true);
-        PConti.SetActive(true);
-		Sal.SetActive(true);
-        PSal.SetActive(true);
-	}
+    void Update()
+    {
+        // Detectar tecla Escape o P (puedes añadir las que quieras)
+        if ((Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.P)) && EnJuego)
+        {
+            AlternarPausa();
+        }
 
-	public void QuitarPausa()
-	{
-		PanelA.SetActive(true);
-		PanelA.GetComponent<ConjPan>().DetNum(3);
-		AnimT = 0.28f;
-		Conti.SetActive(false);
-        PConti.SetActive(false);
-		Sal.SetActive(false);
-        PSal.SetActive(false);
+        // Validación de escena para mostrar fin de juego
+        if (SceneManager.GetActiveScene().buildIndex == 1)
+        {
+            // Cambiado .active (obsoleto) por .activeSelf
+            if (EnJuego == false && Rein != null && !Rein.activeSelf)
+            {
+                MostrarFin();
+            }
+        }
+
+
+    }
+
+    public void PonerPausa()
+    {
+        EnPausa = true;
+        Time.timeScale = 0f; // Sugerencia: Congela el tiempo del motor si es necesario
+        CanGlo.Pause();
+        CanPau.time = Random.Range(35.0f, 165.0f);
+        CanPau.Play();
+
+        ToggleMenuUI(true);
+    }
+
+    public void QuitarPausa()
+    {
+        // Quitamos la UI de botones
+        ToggleMenuUI(false);
+
+        PanelA.SetActive(true);
+        if (PanelA.TryGetComponent<ConjPan>(out var conj)) conj.DetNum(3);
+
+        // No ponemos timeScale = 1 aquí, dejamos que la corrutina lo haga al final
         StartCoroutine(Meh());
-	}
+    }
+
+    private void ToggleMenuUI(bool estado)
+    {
+        Conti.SetActive(estado);
+        PConti.SetActive(estado);
+        Sal.SetActive(estado);
+        PSal.SetActive(estado);
+    }
 
     public void MostrarLista()
     {
@@ -87,6 +103,8 @@ public class MenuPausa : MonoBehaviour
     public static void IniciarJuego(int NC)
     {
         EnJuego = true;
+        EnPausa = false;
+        Time.timeScale = 1f;
         Canciones.CanSelec = NC;
         MovJug.vida = 100;
         SceneManager.LoadScene(1);
@@ -94,6 +112,7 @@ public class MenuPausa : MonoBehaviour
 
     public void VolverAlmenu()
     {
+        Time.timeScale = 1f;
         EnJuego = false;
         EnPausa = false;
         MovJug.vida = 100;
@@ -111,70 +130,95 @@ public class MenuPausa : MonoBehaviour
 
     public void Reiniciar()
     {
+        Time.timeScale = 1f; // Aseguramos que el tiempo corre
         MovJug.vida = 100;
-        GameObject.Find("Vida").GetComponent<ConjPan>().DetNum(MovJug.vida);
-        MarcadorGlobal.Marcador = 0;
-        GameObject.FindGameObjectWithTag("Mar").GetComponent<ConjPan>().DetNum(MarcadorGlobal.Marcador);
+
+        // Uso de elvis operator (?) para evitar NullReference si los objetos no existen
+        GameObject.Find("Vida")?.GetComponent<ConjPan>()?.DetNum(MovJug.vida);
+        GameObject.FindGameObjectWithTag("Mar")?.GetComponent<ConjPan>()?.DetNum(0);
+
         Creador.CanET = 0;
         CanGlo.Stop();
         CanGlo.Play();
-        GameObject[] enemigos;
-        enemigos = GameObject.FindGameObjectsWithTag("Enemigo");
-        foreach (GameObject c in enemigos)
-        {
-            Destroy(c);
-        }
-        GameObject[] BalasE;
-        BalasE = GameObject.FindGameObjectsWithTag("BalaE");
-        foreach (GameObject c in BalasE)
-        {
-            Destroy(c);
-        }
+
+        LimpiarEscena("Enemigo");
+        LimpiarEscena("BalaE");
 
         Rein.SetActive(false);
         Sal.SetActive(false);
         PSal.SetActive(false);
-        MarcadorGlobal.Marcador = 0;
 
         EnJuego = true;
 
-        GameObject creado = Instantiate(Jug);
-        creado.transform.position = new Vector3(0, -5.65f, -2.31f);
-        creado.name = "Jugador";
-
-        creado = Instantiate(Jug);
-        creado.transform.position = new Vector3(30.0f, -5.65f, -2.31f);
-        creado.name = "JugadorC";
-
+        // Instanciar jugadores (Quaternion.identity es el 0,0,0 de rotación)
+        CrearJugador("Jugador", new Vector3(0, -5.65f, -2.31f));
+        CrearJugador("JugadorC", new Vector3(30.0f, -5.65f, -2.31f));
     }
 
-	IEnumerator Meh()
-	{
-		while (num != -1)
-		{
-			AnimT += Time.deltaTime;
-			if (AnimT > 1.0f / 3.0f)
-			{
-				if (num != 0)
-				{
-					PanelA.GetComponent<ConjPan>().DetNum(num);
-					BSonido.Play("Beep");
-				}
-				else PanelA.SetActive(false);
-				AnimT -= (1.0f / 3.0f);
-				num--;
-			}
+    private void LimpiarEscena(string tag)
+    {
+        GameObject[] objetos = GameObject.FindGameObjectsWithTag(tag);
+        foreach (GameObject o in objetos) Destroy(o);
+    }
 
-			yield return null;
-		}
-		EnPausa = false;
-		CanPau.Stop();
-		CanGlo.Play();
-		num = 3;
-	}
+    private void CrearJugador(string nombre, Vector3 pos)
+    {
+        GameObject creado = Instantiate(Jug, pos, Quaternion.identity);
+        creado.name = nombre;
+    }
+
+    IEnumerator Meh()
+    {
+        num = 3;
+        AnimT = 0; // Resetear al inicio
+        while (num >= 0)
+        {
+            // IMPORTANTE: unscaledDeltaTime ignora el Time.timeScale = 0
+            AnimT += Time.unscaledDeltaTime;
+
+            if (AnimT > 1.0f / 3.0f)
+            {
+                if (num != 0)
+                {
+                    if (PanelA.TryGetComponent<ConjPan>(out var conj)) conj.DetNum(num);
+                    if (BSonido != null) BSonido.Play("Beep");
+                }
+                else
+                {
+                    PanelA.SetActive(false);
+                }
+
+                AnimT = 0;
+                num--;
+            }
+            yield return null;
+        }
+
+        // Solo quitamos la pausa física al terminar la cuenta
+        Time.timeScale = 1f;
+        EnPausa = false;
+        CanPau.Stop();
+        CanGlo.UnPause();
+        num = 3;
+    }
+
     public void Salir()
     {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
         Application.Quit();
+#endif
     }
 
+    // Esta función la puedes llamar desde un BOTÓN DE UI
+    public void AlternarPausa()
+    {
+        if (!EnJuego) return;
+
+        if (!EnPausa)
+            PonerPausa();
+        else
+            QuitarPausa();
+    }
 }

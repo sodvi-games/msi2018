@@ -42,6 +42,16 @@ public class ConEspectro : MonoBehaviour {
 
 	public void ConfCancion()
 	{
+
+		// Si por alguna razón Cancion es null, lo buscamos de nuevo
+		if (Cancion == null) Cancion = GetComponent<AudioSource>();
+
+		// Verificamos que el clip realmente exista para evitar el crash
+		if (Cancion.clip == null)
+		{
+			Debug.LogWarning("Intentando configurar canción pero el AudioSource no tiene clip aún.");
+			return;
+		}
 		float[] samplesT = new float[Cancion.clip.samples * Cancion.clip.channels];
 		Cancion.clip.GetData(samplesT, 0);
 		for (int i = 0; i < samplesT.Length; i++)
@@ -53,7 +63,7 @@ public class ConEspectro : MonoBehaviour {
 	}
 
 	// Use this for initialization
-	void Start () {
+	void Awake () {
 		Cancion = GetComponent<AudioSource>();
 		Mat = Esf.GetComponent<MeshRenderer>();
 		exp = false;
@@ -96,7 +106,9 @@ public class ConEspectro : MonoBehaviour {
 				VariarColor(ref besa, ref bes);
 				Mat.material.SetColor("_MKGlowTexColor", new Color(resa, gesa, besa));
 				Mat.material.SetColor("_MKGlowColor", new Color(resa, gesa, besa));
-				Luz.color = new Color(resa, gesa, besa);
+				// Dentro del Update de ConEspectro
+				Color colorSeguro = new Color(Mathf.Clamp01(resa), Mathf.Clamp01(gesa), Mathf.Clamp01(besa));
+				Luz.color = colorSeguro;
 
 				PintaCubos();
 
@@ -153,9 +165,9 @@ public class ConEspectro : MonoBehaviour {
 
     private void MezclarCubos(ref GameObject[] g)
     {
-        GameObject[] lista1 = new GameObject[60];
-        GameObject[] lista2 = new GameObject[60];
-        int h1 = 0,h2 = 0,pos = 0;
+		GameObject[] lista1 = new GameObject[g.Length];
+		GameObject[] lista2 = new GameObject[g.Length];
+		int h1 = 0,h2 = 0,pos = 0;
 
         for (int i = 0; i < g.Length; i++)
         {
@@ -196,6 +208,10 @@ public class ConEspectro : MonoBehaviour {
 			ca -= 0.005f;
 			if (c > ca) c = Random.Range(0.0f, 1.0f);
 		}
+
+		// ESTA ES LA LÍNEA CLAVE:
+		// Asegura que 'ca' nunca sea menor a 0 ni mayor a 1
+		ca = Mathf.Clamp01(ca);
 	}
 
 }

@@ -2,44 +2,66 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro; // Añadido por si usas TextMeshPro
 
 public class CrearBoton : MonoBehaviour
 {
-
-    public GameObject boton;
-    private Button BCreado;
+    public GameObject botonPrefab;
     private string nom;
-    private GameObject[] botones;
+
+    // Eliminamos el array de 'botones' y el Update, ya que no es eficiente
+    // y el posicionamiento se debe manejar con Layout Groups en el UI.
 
     void Start()
     {
+        // Limpiar el contenedor antes de crear (por si acaso)
+        foreach (Transform child in transform)
+        {
+            if (child.CompareTag("Boton")) Destroy(child.gameObject);
+        }
+
         for (int i = 0; i < Canciones.NomClips.Length; i++)
         {
-            GameObject creado = Instantiate(boton);
+            if (string.IsNullOrEmpty(Canciones.NomClips[i])) continue;
+
+            GameObject creado = Instantiate(botonPrefab);
             creado.tag = "Boton";
-            creado.transform.SetParent(transform);
+
+            // Configuración del Transform
+            creado.transform.SetParent(transform, false); // El 'false' mantiene la escala local correcta
             creado.transform.localRotation = Quaternion.identity;
             creado.transform.localScale = Vector3.one;
-            nom = Canciones.NomClips[i];
-            nom = nom.Remove(0, 7);
-            nom = nom.Remove(nom.Length - 4, 4);
-            creado.GetComponentInChildren<Text>().text = nom;       
-            BCreado = creado.GetComponent<Button>();
-            ColocarParametro(BCreado, i);
-            creado.transform.position = new Vector3(0, 0, 0);
+
+            // Procesar nombre (quitando ruta y extensión .wav)
+            // Nota: El Remove(0,7) asume que la ruta empieza con algo fijo. 
+            // Usar Path.GetFileNameWithoutExtension es más seguro en Unity 6.
+            nom = System.IO.Path.GetFileNameWithoutExtension(Canciones.NomClips[i]);
+
+            // Intentar asignar texto (Compatible con Text tradicional y TextMeshPro)
+            var textoLegacy = creado.GetComponentInChildren<Text>();
+            if (textoLegacy != null) textoLegacy.text = nom;
+            else
+            {
+                var textoTMP = creado.GetComponentInChildren<TextMeshProUGUI>();
+                if (textoTMP != null) textoTMP.text = nom;
+            }
+
+            // Configurar el botón
+            Button btnComponent = creado.GetComponent<Button>();
+            if (btnComponent != null)
+            {
+                ColocarParametro(btnComponent, i);
+            }
         }
     }
 
-    void Update(){
-        botones = GameObject.FindGameObjectsWithTag("Boton");
-        foreach( GameObject boton in botones){
-            boton.transform.localPosition = new Vector3(boton.transform.localPosition.x,boton.transform.localPosition.y,0);
-            Debug.Log("boton: " + boton.transform.position);
-        }
-    }
+    // El Update se elimina. Para que los botones se vean bien, 
+    // usa un componente "Vertical Layout Group" en el objeto que tiene este script.
 
     void ColocarParametro(Button b, int h)
     {
+        // Limpiamos listeners previos para evitar ejecuciones dobles
+        b.onClick.RemoveAllListeners();
         b.onClick.AddListener(() => MenuPausa.IniciarJuego(h));
     }
 }

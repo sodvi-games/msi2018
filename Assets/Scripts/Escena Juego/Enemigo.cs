@@ -2,7 +2,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Enemigo : MonoBehaviour {
+public class Enemigo : MonoBehaviour
+{
 
 	[HideInInspector]
 	public float velx, vely;
@@ -18,81 +19,139 @@ public class Enemigo : MonoBehaviour {
 	private float Escala = 1.0f;
 
 	public GameObject[] Esferas;
-
 	public GameObject CiliRot;
-
 	public GameObject BalaE;
-
 	public GameObject Puntuador;
-	private GameObject creado;
+	public GameObject PowerUp;
 
-    public GameObject PowerUp;
-
-	// Use this for initialization
-	void Start () {
+	private void Start()
+	{
+		// Obtenemos el color actual del espectro
 		ColorN = new Color(ConEspectro.ra, ConEspectro.ga, ConEspectro.ba);
-		for (int i = 0; i < Esferas.Length; i++)
+
+		// Coloreamos esferas con seguridad
+		foreach (GameObject esfera in Esferas)
 		{
-			Esferas[i].GetComponent<MeshRenderer>().material.SetColor("_MKGlowColor", ColorN);
+			if (esfera != null)
+				esfera.GetComponent<MeshRenderer>().material.SetColor("_MKGlowColor", ColorN);
 		}
-		CiliRot.GetComponent<MeshRenderer>().material.SetColor("_MKGlowTexColor", ColorN);
+
+		if (CiliRot != null)
+			CiliRot.GetComponent<MeshRenderer>().material.SetColor("_MKGlowTexColor", ColorN);
+
 		TiemDis = Random.Range(1.0f, 5.0f);
 	}
 
-	// Update is called once per frame
-	void Update()
+	private void Update()
 	{
-		if (!MenuPausa.EnPausa)
+		if (MenuPausa.EnPausa) return;
+
+		if (!muerto)
 		{
-			if (!muerto)
+			ManejarMovimientoYAparicion();
+			ManejarDisparo();
+		}
+		else
+		{
+			ManejarMuerte();
+		}
+	}
+
+	private void ManejarMovimientoYAparicion()
+	{
+		// Movimiento inicial de aparición
+		if (TiemApa < 1.0f)
+		{
+			transform.Translate(Time.deltaTime * velx, Time.deltaTime * vely, 0);
+			TiemApa += Time.deltaTime;
+		}
+
+		// Rotación visual
+		if (CiliRot != null)
+		{
+			CiliRot.transform.eulerAngles = new Vector3(rot, 90, 90);
+			rot += 40.0f * Time.deltaTime;
+		}
+	}
+
+	private void ManejarDisparo()
+	{
+		if (TiemDisA < TiemDis)
+		{
+			TiemDisA += Time.deltaTime;
+		}
+		else
+		{
+			if (MenuPausa.EnJuego)
 			{
-				if (TiemApa < 1.0f)
-				{
-					transform.Translate(Time.deltaTime * velx, Time.deltaTime * vely, 0);
-					TiemApa += Time.deltaTime;
-				}
-				CiliRot.transform.eulerAngles = new Vector3(rot, 90, 90);
-				rot += 40.0f * Time.deltaTime;
-				if (TiemDisA < TiemDis)
-				{
-					TiemDisA += Time.deltaTime;
-				}
-				else
-				{
-					if (MenuPausa.EnJuego) Instantiate(BalaE, new Vector3(transform.position.x, transform.position.y, -2.31f), new Quaternion(0, 0, 0, 0)).GetComponentInChildren<MeshRenderer>().material.SetColor("_MKGlowColor", ColorN);
-					TiemDisA -= TiemDis;
-					TiemDis = Random.Range(1.0f, 5.0f);
-				}
+				// Instanciamos la bala enemiga
+				Vector3 posBala = new Vector3(transform.position.x, transform.position.y, -2.31f);
+				GameObject bala = Instantiate(BalaE, posBala, Quaternion.identity);
+
+				// Intentamos colorear la bala (buscando en hijos por si el prefab tiene el renderer dentro)
+				var renderer = bala.GetComponentInChildren<MeshRenderer>();
+				if (renderer != null) renderer.material.SetColor("_MKGlowColor", ColorN);
+			}
+
+			TiemDisA = 0;
+			TiemDis = Random.Range(1.0f, 5.0f);
+		}
+	}
+
+	private void ManejarMuerte()
+	{
+		Escala -= 2.0f * Time.deltaTime;
+		if (Escala <= 0)
+		{
+			Destroy(gameObject);
+		}
+		else
+		{
+			transform.localScale = new Vector3(Escala, Escala, Escala);
+		}
+	}
+
+	// Nota: Asegúrate de que las Balas tengan el Tag "Bala" y un Collider2D
+	private void OnCollisionEnter2D(Collision2D col)
+	{
+		if (muerto) return;
+
+		if (col.gameObject.CompareTag("Bala"))
+		{
+			golpes++;
+			if (golpes >= 1)
+			{
+				Morir();
+			}
+		}
+	}
+
+	private void Morir()
+	{
+		muerto = true;
+
+		// Desactivamos colisionador para que no reciba más golpes mientras se encoge
+		if (TryGetComponent<CircleCollider2D>(out var col)) col.enabled = false;
+
+		// Lógica de puntuación
+		GameObject creado = Instantiate(Puntuador, transform.position, Quaternion.identity);
+		if (creado.TryGetComponent<Puntuajes>(out var scriptPuntos))
+		{
+			scriptPuntos.cantidad = Random.Range(100, 999);
+
+			// Probabilidad de PowerUp
+			if (scriptPuntos.cantidad >= 980)
+			{
+				Instantiate(PowerUp, transform.position, Quaternion.identity);
+				scriptPuntos.CM = Color.yellow;
+				if (MenuPausa.BSonido != null) MenuPausa.BSonido.Play("Act");
 			}
 			else
 			{
-				if (transform.localScale.x < 0) Destroy(gameObject);
-				Escala -= 2.0f * Time.deltaTime;
-				this.transform.localScale = new Vector3(Escala, Escala, Escala);
+				scriptPuntos.CM = ColorN;
 			}
 		}
+
+		Creador.CanET--;
 	}
-
-	void OnCollisionEnter2D(Collision2D col)
-	{
-		if (col.gameObject.tag == "Bala") golpes++;
-		if (golpes == 1)
-		{
-            gameObject.GetComponent<CircleCollider2D>().enabled = false;
-            creado = Instantiate(Puntuador, transform.position, new Quaternion(0, 0, 0, 0));
-			creado.GetComponent<Puntuajes>().cantidad = Random.Range(100, 999);
-            if (creado.GetComponent<Puntuajes>().cantidad >= 980)
-            {
-                Instantiate(PowerUp, transform.position, new Quaternion(0, 0, 0, 0));
-                creado.GetComponent<Puntuajes>().CM = Color.yellow;
-                MenuPausa.BSonido.Play("Act");
-            }else creado.GetComponent<Puntuajes>().CM = ColorN;
-
-            gameObject.GetComponent<CircleCollider2D>().enabled = false;
-
-			muerto = true;
-            Creador.CanET--;
-		}
-	}
-
 }

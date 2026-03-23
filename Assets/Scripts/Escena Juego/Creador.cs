@@ -2,49 +2,68 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Creador : MonoBehaviour {
-
+public class Creador : MonoBehaviour
+{
 	public float TieLleg = 1;
 	private int CanE;
-    public static int CanET;
+	public static int CanET;
 	public GameObject Enemigo;
+
 	private GameObject EnemigoC;
 	private float dx, dy;
-	private float dis;
+	private ConEspectro espectro; // Caché del componente
 
-	private Transform PEsfe;
-
-	// Use this for initialization
-	void Start () {
-
-		PEsfe = GetComponent<ConEspectro>().Esf.transform;
+	void Start()
+	{
+		// Guardamos la referencia para no buscarla cada frame
+		espectro = GetComponent<ConEspectro>();
 	}
 
-	// Update is called once per frame
 	void Update()
 	{
-		if (!MenuPausa.EnPausa)
-		{
-			if (GetComponent<ConEspectro>().exp && GetComponent<ConEspectro>().Luz.range == 13.0f && !MenuPausa.EnPausa)
-			{
-                if (CanET < 50)
-                {
-                    CanE = Random.Range(1, 4);
-                    CanET += CanE;
+		// REGLA DE ORO: Si está en pausa o no estamos en juego, no crear nada
+		if (MenuPausa.EnPausa || !MenuPausa.EnJuego) return;
 
-                    PEsfe = GetComponent<ConEspectro>().Esf.transform;
-                    for (int i = 0; i < CanE; i++)
-                    {
-                        EnemigoC = Instantiate(Enemigo, PEsfe.transform.position, new Quaternion(0, 0, 0, 0));
-                        EnemigoC.GetComponent<Enemigo>().x = Random.Range(-14.0f, 14.0f);
-                        EnemigoC.GetComponent<Enemigo>().y = Random.Range(0.9f, 5.5f);
-                        dx = (EnemigoC.GetComponent<Enemigo>().x - PEsfe.transform.position.x);
-                        dy = (EnemigoC.GetComponent<Enemigo>().y - PEsfe.transform.position.y);
-                        EnemigoC.GetComponent<Enemigo>().velx = dx / TieLleg;
-                        EnemigoC.GetComponent<Enemigo>().vely = dy / TieLleg;
-                    }
-                }
+		// Verificamos la explosión del espectro (pico de audio)
+		if (espectro.exp && espectro.Luz.range >= 13.0f)
+		{
+			if (CanET < 50)
+			{
+				GenerarOleada();
 			}
 		}
+	}
+
+	void GenerarOleada()
+	{
+		CanE = Random.Range(1, 4);
+		CanET += CanE;
+
+		Transform PEsfe = espectro.Esf.transform;
+
+		for (int i = 0; i < CanE; i++)
+		{
+			// Instanciamos en la posición de la esfera central
+			EnemigoC = Instantiate(Enemigo, PEsfe.position, Quaternion.identity);
+
+			// Intentamos obtener el script del enemigo de forma segura
+			if (EnemigoC.TryGetComponent<Enemigo>(out var scriptEnemigo))
+			{
+				// Definimos destino aleatorio
+				scriptEnemigo.x = Random.Range(-14.0f, 14.0f);
+				scriptEnemigo.y = Random.Range(0.9f, 5.5f);
+
+				// Calculamos distancia y velocidad para llegar en 'TieLleg' segundos
+				dx = scriptEnemigo.x - PEsfe.position.x;
+				dy = scriptEnemigo.y - PEsfe.position.y;
+
+				scriptEnemigo.velx = dx / TieLleg;
+				scriptEnemigo.vely = dy / TieLleg;
+			}
+		}
+
+		// Evitamos que genere múltiples veces en el mismo pico de audio
+		// bajando la bandera de explosión temporalmente si es necesario
+		espectro.exp = false;
 	}
 }

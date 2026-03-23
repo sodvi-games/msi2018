@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MovJug : MonoBehaviour {
+public class MovJug : MonoBehaviour
+{
 
-	// public KeyCode dere, izq, Dis;
-	public float vel = 2;
+	public float vel = 15f; // Aumentado un poco para compensar el Time.deltaTime
 	public static float rj, gj, bj, raj, gaj, baj;
 	private float TiempoCC;
 	private const float CC = 0.01f;
@@ -17,9 +17,8 @@ public class MovJug : MonoBehaviour {
 	private int E = 0;
 	[SerializeField] private float CBalas = 50;
 	[SerializeField] private float Trec = 0.5f;
-	[SerializeField] private const float Rec = 0.01f;
+	private const float Rec = 0.1f; // Quitamos Serialized y ajustamos tiempo de disparo
 
-	
 	private float limite_pantalla = 16.5f;
 
 	[SerializeField] private float Trell = 0;
@@ -27,84 +26,125 @@ public class MovJug : MonoBehaviour {
 
 	public bool EnPelea;
 
-    public Animator anim;
-    public static int vida;
+	public Animator anim;
+	public static int vida = 100; // Inicializar vida por seguridad
 
-	void Start () {
+	void Awake()
+	{
+		// Inicializamos componentes en Awake para evitar errores de Null en Start
+		anim = GetComponent<Animator>();
+		if (Cil != null) Mat = Cil.GetComponent<MeshRenderer>();
+	}
+
+	void Start()
+	{
 		rj = Random.Range(0.0f, 1.0f);
 		gj = Random.Range(0.0f, 1.0f);
 		bj = Random.Range(0.0f, 1.0f);
 		raj = rj;
 		gaj = gj;
 		baj = bj;
-		rj = Random.Range(0.0f, 1.0f);
-		gj= Random.Range(0.0f, 1.0f);
-		bj = Random.Range(0.0f, 1.0f);
-		Mat = Cil.GetComponent<MeshRenderer>();
-		Mat.material.SetColor("_MKGlowTexColor", new Color(raj, gaj, baj));
-        anim = GetComponent<Animator>();
+
+		if (Mat != null)
+			Mat.material.SetColor("_MKGlowTexColor", new Color(raj, gaj, baj));
 	}
 
-	// Update is called once per frame
-	void Update() {
-		if (!MenuPausa.EnPausa) { // siempre y cuando no esté en pausa
-			if (TiempoCC > CC) { // si la variación de color está en CC
-				ConEspectro.VariarColor(ref raj, ref rj);
-				ConEspectro.VariarColor(ref gaj, ref gj);
-				ConEspectro.VariarColor(ref baj, ref bj);
-				Mat.material.SetColor("_MKGlowTexColor", new Color(raj, gaj, baj));
-				TiempoCC -= CC;
-			}
-			TiempoCC += Time.deltaTime;
+	void Update()
+	{
+		if (!MenuPausa.EnPausa)
+		{
+			ManejarColores();
+			ManejarMovimiento();
+			ManejarDisparo();
+			ManejarEstadoVida();
+		}
+	}
 
-			// nos movemos gracias al eje X de cualquier mando, teclado.
-			transform.Translate(Time.deltaTime * vel * Input.GetAxis("Horizontal"), 0, 0);
+	void ManejarColores()
+	{
+		if (TiempoCC > CC)
+		{
+			ConEspectro.VariarColor(ref raj, ref rj);
+			ConEspectro.VariarColor(ref gaj, ref gj);
+			ConEspectro.VariarColor(ref baj, ref bj);
+			if (Mat != null) Mat.material.SetColor("_MKGlowTexColor", new Color(raj, gaj, baj));
+			TiempoCC -= CC;
+		}
+		TiempoCC += Time.deltaTime;
+	}
 
-			// Hay una traslación necesaria para que cambie de objeto jugable
-			if (transform.position.x < -30) transform.position = new Vector3(60 + transform.position.x, transform.position.y, transform.position.z);
-			else if (transform.position.x > 30) transform.position = new Vector3(-60 + transform.position.x, transform.position.y, transform.position.z);
+	void ManejarMovimiento()
+	{
+		float moveX = Input.GetAxis("Horizontal");
+		transform.Translate(Vector3.right * moveX * vel * Time.deltaTime);
 
-			if (CBalas > 0 && Input.GetButton("Fire1")) { // si tenemos balas y disparamos
-				if (Trec >= Rec) { // si el cc del disparo es mayor al anterior disparo
-					Trec = 0; // reiniciamos el cc
+		// Teletransporte/Loop de pantalla
+		if (transform.position.x < -30) transform.position = new Vector3(60 + transform.position.x, transform.position.y, transform.position.z);
+		else if (transform.position.x > 30) transform.position = new Vector3(-60 + transform.position.x, transform.position.y, transform.position.z);
+
+		EnPelea = (transform.position.x > -limite_pantalla && transform.position.x < limite_pantalla);
+	}
+
+	void ManejarDisparo()
+	{
+		// Lógica de disparo
+		if (CBalas > 0 && Input.GetButton("Fire1"))
+		{
+			if (Trec >= Rec)
+			{
+				if (EnPelea)
+				{
+					Trec = 0;
 					Trell = 0;
-					if (transform.position.x > -limite_pantalla && transform.position.x < limite_pantalla) { // si estamos dentro del límite de la pantalla
-					 	// reducimos las balas restantes, solo si se generó una bala
-						CBalas--;
-						// regresamos a 0 el apuntador del arma
-						if (E >= 3) E = 0;
-						// creamos y coloreamos una bala en la posición E, y la iteramos
-						Instantiate(Bala, new Vector3(Esfe[E++].transform.position.x, transform.position.y, -2.31f), Quaternion.identity).GetComponent<MeshRenderer>().material.SetColor("_MKGlowColor", new Color(raj, gaj, baj));
-						// cada bala sale desde la posición de la esfera arma en x, la posición del jugador en y una falla en z
-						// se supone que cambia el pitch al disparar para no molestar al jugador, pero da error .-.
+					CBalas--;
+
+					if (E >= Esfe.Length) E = 0;
+
+					// Instanciamos y coloreamos la bala
+					GameObject nuevaBala = Instantiate(Bala, new Vector3(Esfe[E++].transform.position.x, transform.position.y, -2.31f), Quaternion.identity);
+					nuevaBala.GetComponent<MeshRenderer>().material.SetColor("_MKGlowColor", new Color(raj, gaj, baj));
+
+					// FIX: Error del Pitch. Verificamos que BSonido exista antes de llamar
+					if (MenuPausa.BSonido != null)
+					{
 						MenuPausa.BSonido.CambiarPitch("D", CBalas);
 						MenuPausa.BSonido.Play("D");
 					}
 				}
-				else Trec += Time.deltaTime; // si estás en CC tendrás que esperar
-			} else { // no estás disparando, o no tienes balas
-				if (Trell >= Rell && CBalas < 50) { // tus balas están por debajo de 50 y puedes recargar
-					CBalas++; // se aumentan tus balas disponibles
-					Trell -= Rell; // se reduce la recarga
-					if (Input.GetButton("Fire1")) Rell = 0.1f; // intentas disparar, y recargas lento
-					else Rell = 0.01f; // si no, recargas rápido
-				}
-				else if (Trell < Rell) Trell += Time.deltaTime; // si no estás disparando, y la recarga no está disponible esperas a que carge¿
 			}
-
-			// dependiendo de tu posición puedes o no disparar
-			EnPelea = (transform.position.x > - limite_pantalla && transform.position.x < limite_pantalla) ? true : false;
-
-			foreach (GameObject esfera in Esfe) // iluminamos las esferas de acuerdo a su contador de balas
-				esfera.GetComponent<MeshRenderer>().material.SetFloat("_MKGlowPower", 0.05f * CBalas);
+			else Trec += Time.deltaTime;
+		}
+		else
+		{ // Recarga
+			if (Trell >= Rell && CBalas < 50)
+			{
+				CBalas++;
+				Trell = 0; // Reiniciamos el contador de recarga
+				Rell = Input.GetButton("Fire1") ? 0.1f : 0.01f;
+			}
+			else if (Trell < Rell) Trell += Time.deltaTime;
 		}
 
-        anim.SetInteger("Vida", vida);
+		// Actualizamos brillo de las esferas (Armas)
+		foreach (GameObject esfera in Esfe)
+		{
+			if (esfera != null)
+				esfera.GetComponent<MeshRenderer>().material.SetFloat("_MKGlowPower", 0.05f * CBalas);
+		}
+	}
 
-        if (anim.GetCurrentAnimatorStateInfo(0).IsName("Destruido") && vida <= 0) {
-            MenuPausa.EnJuego = false;
-            Destroy(gameObject);
-        }
+	void ManejarEstadoVida()
+	{
+		if (anim != null) anim.SetInteger("Vida", vida);
 
+		if (vida <= 0)
+		{
+			// Verificamos si la animación de destrucción ya terminó
+			if (anim != null && anim.GetCurrentAnimatorStateInfo(0).IsName("Destruido"))
+			{
+				MenuPausa.EnJuego = false;
+				Destroy(gameObject);
+			}
+		}
 	}
 }

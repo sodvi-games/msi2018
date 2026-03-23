@@ -3,7 +3,7 @@
 //					                                //
 // Created by Michael Kremmel                       //
 // www.michaelkremmel.de | www.michaelkremmel.store //
-// Copyright © 2017 All rights reserved.            //
+// Copyright ï¿½ 2017 All rights reserved.            //
 //////////////////////////////////////////////////////
 
 using System.Collections;
@@ -49,7 +49,7 @@ namespace MK.Glow
         private Material compositeMaterial;
         private Material blurMaterial;
 
-        [SerializeField]
+        
         private Camera Cam
         {
             get { return GetComponent<Camera>(); }

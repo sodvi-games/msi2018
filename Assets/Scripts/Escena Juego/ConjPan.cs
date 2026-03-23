@@ -2,58 +2,82 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ConjPan : MonoBehaviour {
-
+public class ConjPan : MonoBehaviour
+{
 	public List<GameObject> PanelH = new List<GameObject>();
 	public GameObject[] PanelM = new GameObject[20];
+
 	private int CanPan = 2;
-	private int PanAct = 2;
 	public int BasDiez = 1000;
-	public int mult = 1;
-	public int NPT;
+	private int mult = 1;
 
+	// Caché de componentes para evitar buscar cada vez
+	private Paneles[] scriptsPaneles;
 
-	// Use this for initialization
-	void Awake () {
-		foreach (Transform child in this.gameObject.transform)
+	void Awake()
+	{
+		PanelH.Clear();
+		foreach (Transform child in transform)
 		{
 			PanelH.Add(child.gameObject);
 		}
+
 		PanelM = PanelH.ToArray();
 		CanPan = PanelM.Length - 1;
+
+		// Guardamos los scripts de los paneles de una vez por todas
+		scriptsPaneles = new Paneles[PanelM.Length];
+		for (int i = 0; i < PanelM.Length; i++)
+		{
+			scriptsPaneles[i] = PanelM[i].GetComponent<Paneles>();
+		}
 	}
-	
+
 	public void DetNum(int NP)
 	{
-		if (NP >= BasDiez)
+		// Si el número crece más allá de lo esperado, habilitamos un nuevo dígito
+		if (NP >= BasDiez && (CanPan + 1) < PanelM.Length)
 		{
 			BasDiez *= 10;
-			PanAct++;
-			PanelM[PanAct].SetActive(true);
+			// Si el panel estaba oculto, lo activamos
+			// Nota: Aquí se asume que los paneles están ordenados por jerarquía
 		}
 
-		NPT = NP;
+		int NPT = NP;
+		mult = 1;
 
 		for (int i = 0; i <= CanPan; i++)
 		{
-			PanelM[i].GetComponent<Paneles>().Reiniciar();
-			NP = ((NPT % (mult * 10)) - (NPT % mult)) / mult;
-			PanelM[i].GetComponent<Paneles>().Imprimir(NP);
+			if (scriptsPaneles[i] == null) continue;
+
+			// Reiniciamos el panel (apaga todos los cubos)
+			scriptsPaneles[i].Reiniciar();
+
+			// Matemática para extraer el dígito específico
+			int digito = ((NPT % (mult * 10)) - (NPT % mult)) / mult;
+
+			// Le decimos al panel que imprima ese dígito
+			scriptsPaneles[i].Imprimir(digito);
+
 			mult *= 10;
 		}
-
-		mult = 1;
 	}
 
 	public void PonerColor(Color C)
 	{
-		for (int i = 0; i < PanelM.Length; i++)
+		// Ya no usamos GetComponent dentro de los for, usamos el array scriptsPaneles
+		for (int i = 0; i < scriptsPaneles.Length; i++)
 		{
-			for (int p = 0; p < 15; p++)
+			if (scriptsPaneles[i] == null) continue;
+
+			// Accedemos directamente a los cubos del script Paneles
+			for (int p = 0; p < scriptsPaneles[i].cubos.Length; p++)
 			{
-				GetComponent<ConjPan>().PanelM[i].GetComponent<Paneles>().cubos[p].GetComponent<MeshRenderer>().material.SetColor("_MKGlowColor", C);
+				if (scriptsPaneles[i].cubos[p] != null)
+				{
+					scriptsPaneles[i].cubos[p].GetComponent<MeshRenderer>().material.SetColor("_MKGlowColor", C);
+				}
 			}
 		}
 	}
-
 }

@@ -4,27 +4,48 @@ using UnityEngine;
 
 public class MovNav : MonoBehaviour
 {
-    public float x, y, z;
-    public float r;
-    public float ang,vel;
-	public GameObject cili;
-	
-	// Start is called before the first frame update
+    [Header("Configuración de Órbita")]
+    public float radio = 10f;
+    public float velocidadGiro = 0.5f;
+
+    private float anguloActual;
+    private float alturaOriginal; // Guardará la Y que pusiste en el editor
+
     void Start()
     {
-        x = transform.position.x;
-        y = transform.position.y;
-        z = transform.position.z + r;
-        vel = (2 * Mathf.PI) / 10;
+        // 1. Guardamos la altura Y actual para que no se mueva de ahí
+        alturaOriginal = transform.position.y;
+
+        // 2. Calculamos el ángulo inicial basado en su posición en la escena
+        // para que la órbita empiece exactamente donde dejaste el objeto
+        anguloActual = Mathf.Atan2(transform.position.x, transform.position.z);
     }
 
-    // Update is called once per frame
     void Update()
     {
-        ang += (Time.deltaTime * vel);
+        if (MenuPausa.EnPausa) return;
 
-        transform.eulerAngles = new Vector3(0, -(ang *180)/Mathf.PI, 0);
+        // 3. Incrementar el ángulo según el tiempo
+        anguloActual += Time.deltaTime * velocidadGiro;
 
-        transform.position = new Vector3(r * Mathf.Sin(ang) + x, y, -r * Mathf.Cos(ang) + z);
-	}
+        // 4. Calcular nueva posición (X y Z cambian, Y se queda igual)
+        float x = Mathf.Sin(anguloActual) * radio;
+        float z = Mathf.Cos(anguloActual) * radio;
+
+        transform.position = new Vector3(x, alturaOriginal, z);
+
+        // 5. Lógica de Rotación "Nivelada" (Mirar al centro sin inclinarse)
+        Vector3 direccionAlCentro = Vector3.zero - transform.position;
+
+        // IMPORTANTE: Forzamos que la diferencia de altura sea 0 para el cálculo de rotación
+        // Esto evita que el objeto "mire hacia abajo" si está muy alto
+        direccionAlCentro.y = 0;
+
+        if (direccionAlCentro != Vector3.zero)
+        {
+            // Creamos la rotación mirando al centro pero solo en el eje horizontal
+            Quaternion lookRotation = Quaternion.LookRotation(direccionAlCentro);
+            transform.rotation = lookRotation;
+        }
+    }
 }

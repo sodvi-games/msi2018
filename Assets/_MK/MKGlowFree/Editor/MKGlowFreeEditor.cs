@@ -31,7 +31,6 @@ namespace MK.Glow
         }
 
         private const string m_Style = "box";
-        private ColorPickerHDRConfig colorPickerHDRConfig = new ColorPickerHDRConfig(0f, 99f, 1 / 99f, 3f);
         private static GUIContent glowTintLabel = new GUIContent("Glow Tint", "The glows coloration in full screen mode(only FullscreenGlowType)");
 
         private SerializedProperty glowType;
@@ -102,7 +101,7 @@ namespace MK.Glow
                 {
                     threshold.floatValue = EditorGUILayout.FloatField("Threshold", threshold.floatValue);
                 }
-                glowTint.colorValue = EditorGUILayout.ColorField(glowTintLabel, glowTint.colorValue, false, false, false, colorPickerHDRConfig);
+                glowTint.colorValue = EditorGUILayout.ColorField(glowTintLabel, glowTint.colorValue, false, false, false);   
             }
             if (HandleBehavior("Glow Inner", ref showInnerGlowBehavior))
             {
